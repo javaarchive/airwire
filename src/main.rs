@@ -290,7 +290,7 @@ fn main() {
                     // claude suggested this logging thing
                     if data.len() > 0 && audio_buffer.len() % (sample_rate as usize) == 0 {
                         let buffer_ms = audio_buffer.len() * 1000 / (sample_rate as usize * channels as usize);
-                        // println!("Buffer status: {}ms filled {}/{}", buffer_ms, filled, data.len());
+                        println!("Buffer status: {}ms filled {}/{}", buffer_ms, filled, data.len());
                     }
                 },
                 move |err| {
