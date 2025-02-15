@@ -3,7 +3,7 @@ use std::{collections::VecDeque, net::UdpSocket, sync::{Arc, Mutex}};
 use audio::Codec;
 use clap::{Args, Parser, Subcommand};
 use cpal::{traits::{DeviceTrait, HostTrait, StreamTrait}, SupportedStreamConfig, SupportedStreamConfigRange};
-use thread_priority::{set_current_thread_priority, set_thread_priority};
+use thread_priority::{set_current_thread_priority};
 
 pub mod audio;
 
