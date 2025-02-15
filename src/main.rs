@@ -3,6 +3,7 @@ use std::{collections::VecDeque, net::UdpSocket, sync::{Arc, Mutex}};
 use audio::Codec;
 use clap::{Args, Parser, Subcommand};
 use cpal::{traits::{DeviceTrait, HostTrait, StreamTrait}, SupportedStreamConfig, SupportedStreamConfigRange};
+use thread_priority::{set_current_thread_priority, set_thread_priority};
 
 pub mod audio;
 
@@ -29,18 +30,20 @@ enum Command {
 pub struct AudioConfig {
     #[clap(long, global = true, default_value_t = -1)]
     pub buffer: i32,
-    #[clap(long, global = true)]
+    #[clap(long, global = true, env = "AIRWIRE_ADDR")]
     pub addr: Option<String>,
-    #[clap(long, global = true)]
+    #[clap(long, global = true, env = "AIRWIRE_DEFAULT_DEVICE_NAME")]
     pub target_device_name: Option<String>,
-    #[clap(long, global = true, default_value_t = 48000)]
+    #[clap(long, global = true, default_value_t = 48000, env = "AIRWIRE_SAMPLE_RATE")]
     pub sample_rate: u32,
     #[clap(long, global = true, default_value_t = 480)]
     pub frame_size: u32,
-    #[clap(long, global = true, default_value_t = 2)]
+    #[clap(long, global = true, default_value_t = 2, env = "AIRWIRE_CHANNELS")]
     pub channels: u16,
-    #[clap(long, global = true, default_value_t = Codec::None)]
+    #[clap(long, global = true, default_value_t = Codec::None, env = "AIRWIRE_CODEC")]
     pub codec: Codec,
+    #[clap(long, global = true, default_value_t = false)]
+    pub priority: bool,
 }
 
 impl AudioConfig {
@@ -151,6 +154,8 @@ fn main() {
     let calculate_real_frame_size = || ((airwire_config.global_opts.frame_size as usize) * (airwire_config.global_opts.channels as usize) * 2);
     let calculate_sample_frame_size = || ((airwire_config.global_opts.frame_size as usize) * (airwire_config.global_opts.channels as usize));
 
+    let high_priority = airwire_config.global_opts.priority;
+
     // networking is hardcoded for now
     match airwire_config.command {
         Command::Transmit(args) => {
@@ -238,11 +243,23 @@ fn main() {
 
             let cpal_config = airwire_config.global_opts.get_stream_config();
 
-            std::thread::spawn(move || {
+            std::thread::Builder::new().name("networking".to_string()).spawn(move || {
+                
                 println!("begin recieve thread {}",packet_size + 2);
                 let decoder = airwire_config.global_opts.construct_decoder();
                 let mut receive_buffer = vec![0u8; packet_size + 2];
                 let mut decode_buffer = Vec::with_capacity(real_frame_size);
+
+                if high_priority {
+                    match set_current_thread_priority(thread_priority::ThreadPriority::Max) {
+                        Ok(_) => {
+                            println!("Set thread priority to max");
+                        },
+                        Err(_) => {
+                            println!("Failed to set thread priority");
+                        },
+                    }
+                }
 
                 loop {
                     match socket_arc.recv(&mut receive_buffer) {
@@ -270,7 +287,7 @@ fn main() {
                         },
                     }
                 }
-            });
+            }).expect("recieve thread setup failed");
 
             let audio_buffer_clone_2 = audio_buffer.clone();
             let output_stream = output_device.build_output_stream(
@@ -290,7 +307,7 @@ fn main() {
                     // claude suggested this logging thing
                     if data.len() > 0 && audio_buffer.len() % (sample_rate as usize) == 0 {
                         let buffer_ms = audio_buffer.len() * 1000 / (sample_rate as usize * channels as usize);
-                        println!("Buffer status: {}ms filled {}/{}", buffer_ms, filled, data.len());
+                        // println!("Buffer status: {}ms filled {}/{}", buffer_ms, filled, data.len());
                     }
                 },
                 move |err| {
