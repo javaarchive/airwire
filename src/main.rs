@@ -44,6 +44,8 @@ pub struct AudioConfig {
     pub codec: Codec,
     #[clap(long, global = true, default_value_t = false)]
     pub priority: bool,
+    #[clap(long, global = true, default_value_t = false)]
+    pub stereo_swap: bool,
 }
 
 impl AudioConfig {
@@ -165,6 +167,11 @@ fn main() {
             let max_buffer_frames = calculate_max_buffer_frames();
             let sample_frame_size = calculate_sample_frame_size();
             let packet_size = calculate_packet_size();
+            let stereo_swap = airwire_config.global_opts.stereo_swap;
+
+            if stereo_swap {
+                println!("Stereo swap enabled on transmit side, performance may be only slightly reduced. ");
+            }
 
             let cpal_config = airwire_config.global_opts.get_stream_config();
 
@@ -187,7 +194,15 @@ fn main() {
 
                         if buffer_pos < sample_frame_size as usize {
                             // println!("sample {}", sample);
-                            input_buffer[buffer_pos] = sample;
+                            // stereo swap hack
+                            let buffer_pos_internal = match stereo_swap {
+                                false => buffer_pos,
+                                true => match buffer_pos % 2 {
+                                    0 => buffer_pos + 1, // 0 to 1
+                                    _ => buffer_pos - 1, // 1 to 0
+                                },
+                            };
+                            input_buffer[buffer_pos_internal] = sample;
                             buffer_pos += 1;
                         }
                         if buffer_pos >= sample_frame_size as usize {
@@ -232,6 +247,11 @@ fn main() {
             let buffer_ms = airwire_config.global_opts.buffer as u32;
             let sample_rate = airwire_config.global_opts.sample_rate as u32;
             let channels = airwire_config.global_opts.channels as u16;
+            let stereo_swap = airwire_config.global_opts.stereo_swap;
+
+            if stereo_swap {
+                println!("Stereo swap enabled on recv side, may reduce performance a lot.");
+            }
             
             // struct idea from claude
             let audio_buffer: Arc<Mutex<VecDeque<f32>>> = Arc::new(Mutex::new(VecDeque::with_capacity(
@@ -271,7 +291,15 @@ fn main() {
                                         // thanks to rust being too safe we have a copy here
                                         let mut audio_buffer = audio_buffer_clone.lock().unwrap();
                                         // println!("decode {} bytes {}", decode_buffer.len(), decode_buffer[70]);
-                                        audio_buffer.extend(decode_buffer.iter());
+                                        if stereo_swap {
+                                            // TODO: optimize this
+                                            for i in 0..decode_buffer.len() / 2 {
+                                                audio_buffer.push_back(decode_buffer[i * 2 + 1]);
+                                                audio_buffer.push_back(decode_buffer[i * 2]);
+                                            }
+                                        } else{
+                                            audio_buffer.extend(decode_buffer.iter());
+                                        }
                                         decode_buffer.clear();
                                     },
                                     Err(err) => {
