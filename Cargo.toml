@@ -1,0 +1,9 @@
+[package]
+name = "airwire"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+byteorder = "1.5.0"
+clap = { version = "4.5.29", features = ["derive", "env"] }
+cpal = "0.15.3"
