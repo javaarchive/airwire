@@ -10,9 +10,9 @@ i have some speakers and a projector and it's too much effort to have a long cab
 * cross platform and light (tens of mb of memory usage, currently a little over 1mb release compile size)
 * stereo swap in case your channel order differs for stereo.
 * written in rust 
+* optional opus stereo
 
 ## someday in the future
-* opus encoding
 * configurable transports
 
 ## usage
@@ -33,6 +33,10 @@ then on a linux machine (in this case a pi, can leave buffer blank to automatica
 ```bash
 RUST_BACKTRACE=full ./airwire recieve --addr "0.0.0.0:6969" --target-device-name pulse --buffer 480
 ```
+
+## out of scope
+* encryption
+* automatically matching protocols and frame sizes with server (maybe in the future?)
 
 ## compilation
 ### linux

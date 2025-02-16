@@ -56,11 +56,11 @@ pub struct AudioConfig {
     pub quality: u32,
     #[clap(short, long, global = true, default_value_t = { "audio".to_string() }, help = "profile/application preset to pass to codec, defaults to audio")]
     pub profile: String,
-    #[clap(short, long, global = true, default_value_t = 128, help = "bitrate in kbps, defaults to 128 which is good for opus, negative or 0 value will omit")]
+    #[clap(short, long, global = true, default_value_t = 128, help = "bitrate in kbps, defaults to 128kbps which is good for opus, negative or 0 value will omit")]
     pub bitrate: i32,
     #[clap(long, global = true, default_value_t = false, help = "enable forward error correction for opus codec")]
     pub fec: bool,
-    #[clap(long, global = true, default_value_t = false, help = "enable variable bitrate for opus codec")]
+    #[clap(long, global = true, default_value_t = false, help = "enable variable bitrate for codecs that supported it")]
     pub vbr: bool,
     #[clap(long, global = true, default_value_t = false, help = "enable debug logging")]
     pub debug: bool,
@@ -72,7 +72,7 @@ impl AudioConfig {
             Codec::None => Box::new(audio::PCMCodec::new(self)),
             Codec::Opus => {
                 #[cfg(not(feature = "opus"))]
-                panic!("Opus codec is not enabled, enable it with --features opus");
+                panic!("Opus codec is not enabled, enable it with --features opus when compiling");
                 #[cfg(feature = "opus")]
                 Box::new(OpusCodec::new(self))
             },
@@ -85,7 +85,7 @@ impl AudioConfig {
             Codec::None => Box::new(audio::PCMCodec::new(self)),
             Codec::Opus => {
                 #[cfg(not(feature = "opus"))]
-                panic!("Opus codec is not enabled, enable it with --features opus");
+                panic!("Opus codec is not enabled, enable it with --features opus when compiling");
                 #[cfg(feature = "opus")]
                 Box::new(OpusCodec::new(self))
             },
