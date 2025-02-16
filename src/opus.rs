@@ -1,5 +1,5 @@
 
-use crate::audio::{Decoder, Encoder};
+use crate::audio::{hexdump_debug, Decoder, Encoder};
 use crate::AudioConfig;
 use opus::{Application, Channels, Decoder as OpusDecoder, Encoder as OpusEncoder};
 
@@ -43,6 +43,7 @@ impl OpusCodec {
 
         encoder.set_inband_fec(config.fec).expect("opus inband fec set failure");
         encoder.set_vbr(config.vbr).expect("opus vbr set failure");
+        // encoder.set_packet_loss_perc(value)
 
         // TODO: packet loss percentage?
 
@@ -57,23 +58,31 @@ impl OpusCodec {
 impl Encoder for OpusCodec {
     fn encode(&mut self, input: &[f32], output: &mut Vec<u8>) -> Result<(), String> {
         match self.encoder.encode_float(input, output) {
-            Ok(_) => {
+            Ok(wrote) => {
+                output.resize(wrote, 0); // this will only shrink
+                // println!("encode {} bytes sample {}", wrote, input[69]);
+                // hexdump_debug(output);
                 Ok(())
             },
             Err(err) => {
-                Err(format!("opus encoding got an error: {:?}", err))
+                // Err(format!("opus encoding got an error: {:?}", err))
+                Err(format!("opus encoding got an error: {:?} {:?} {}", err, input, input.len()))
             }
         }
     }
 }
 impl Decoder for OpusCodec {
     fn decode(&mut self, input: &[u8], output: &mut Vec<f32>) -> Result<(), String> {
+        // println!("in {} out {}", input.len(), output.len());
         match self.decoder.decode_float(input, output, self.config.fec) {
             Ok(_) => {
                 Ok(())
             },
             Err(err) => {
-                Err(format!("opus decoding got an error: {:?}", err))
+                if self.config.debug {
+                    hexdump_debug(input);
+                }
+                Err(format!("opus decoding got an error: {:?} input: {} output: {}", err, input.len(), output.len()))
             },
         }
     }

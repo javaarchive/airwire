@@ -36,7 +36,10 @@ RUST_BACKTRACE=full ./airwire recieve --addr "0.0.0.0:6969" --target-device-name
 
 ## compilation
 ### linux
-I compiled another copy of this project on a pi 5, and all I needed to do for dependencies at build time was `sudo apt install libasound2-dev`.
+I compiled another copy of this project on a pi 5, and all I needed to do for dependencies at build time was `sudo apt install libasound2-dev`. By default opus support is enabled (btw I haven't tested without it), which requires `cmake`. So in addition you may need to run the following:
+```bash
+sudo apt install cmake
+```
 ### windows
 it worked out of the box on my machine, might have some stuff already installed.
 ### other platforms

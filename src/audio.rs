@@ -26,6 +26,7 @@ impl PCMCodec {
 
 impl Encoder for PCMCodec {
     fn encode(&mut self, input: &[f32], output: &mut Vec<u8>) -> Result<(), String> {
+        output.clear();
         for (i, &sample) in input.iter().enumerate() {
             // got this code from claude for the tricky byte manips
             let pre = sample.max(-1.0).min(1.0) * 32767.0;
@@ -44,8 +45,12 @@ impl Decoder for PCMCodec {
         // resize output if needed
         let estimated_output_length = input.len() / 2;
         if output.len() != estimated_output_length {
-            output.resize(estimated_output_length, 0.0);
+            // println!("mismatch")
+            // output.resize(estimated_output_length, 0.0);
+            // this is now handled in the caller code
+            return Err(format!("output buffer size mismatch, expected {} got {}", estimated_output_length, output.len()));
         }
+
         for i2 in 0..input.len() / 2 {
             let i = i2 * 2;
             let sample_i16 = LittleEndian::read_i16(&input[i..i + 2]);
@@ -75,4 +80,11 @@ impl ToString for Codec {
             Codec::Opus => "opus".to_string(),
         }
     }
+}
+
+pub fn hexdump_debug(data: &[u8]) {
+    for i in 0..data.len() {
+        print!("{:02x} ", data[i]);
+    }
+    println!("");
 }

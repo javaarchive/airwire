@@ -58,10 +58,12 @@ pub struct AudioConfig {
     pub profile: String,
     #[clap(short, long, global = true, default_value_t = 128, help = "bitrate in kbps, defaults to 128 which is good for opus, negative or 0 value will omit")]
     pub bitrate: i32,
-    #[clap(long, global = true, default_value_t = true, help = "enable forward error correction for opus codec")]
+    #[clap(long, global = true, default_value_t = false, help = "enable forward error correction for opus codec")]
     pub fec: bool,
     #[clap(long, global = true, default_value_t = false, help = "enable variable bitrate for opus codec")]
     pub vbr: bool,
+    #[clap(long, global = true, default_value_t = false, help = "enable debug logging")]
+    pub debug: bool,
 }
 
 impl AudioConfig {
@@ -210,6 +212,7 @@ fn main() {
 
             let mut input_buffer = vec![0.0f32; sample_frame_size as usize];
             let mut packet_buffer = Vec::with_capacity((packet_size + SIGNATURE_SIZE) as usize);
+            let mut encoded_data_buffer = vec![0; (packet_size) as usize];
             let mut buffer_pos = 0;
             add_signature(&mut packet_buffer);
 
@@ -234,10 +237,13 @@ fn main() {
                             buffer_pos += 1;
                         }
                         if buffer_pos >= sample_frame_size as usize {
-                            if let Err(err) = encoder.encode(&input_buffer, &mut packet_buffer) {
+                            encoded_data_buffer.resize(packet_size as usize, 0);
+                            if let Err(err) = encoder.encode(&input_buffer, &mut encoded_data_buffer) {
                                 println!("Error encoding data: {:?}", err);
                             } else {
                                 // println!("send {} bytes (input {})", packet_buffer.len(),input_buffer.len());
+                                packet_buffer.extend_from_slice(&encoded_data_buffer);
+                                // println!("sent {} bytes", packet_buffer.len());
                                 socket_arc.send(&packet_buffer).expect("Error sending data");
                                 /*print!("sent a ");
                                 for i in 450..500 {
@@ -271,6 +277,7 @@ fn main() {
             let max_buffer_frames = calculate_max_buffer_frames();
             let packet_size = calculate_packet_size();
             let real_frame_size = calculate_real_frame_size();
+            let sample_frame_size = calculate_sample_frame_size();
             let should_configure_buffer = airwire_config.global_opts.buffer <= 0;
             let buffer_ms = airwire_config.global_opts.buffer as u32;
             let sample_rate = airwire_config.global_opts.sample_rate as u32;
@@ -296,7 +303,7 @@ fn main() {
                 println!("begin recieve thread {}",packet_size + SIGNATURE_SIZE);
                 let mut decoder = airwire_config.global_opts.construct_decoder();
                 let mut receive_buffer = vec![0u8; packet_size + SIGNATURE_SIZE];
-                let mut decode_buffer = Vec::with_capacity(real_frame_size);
+                let mut decode_buffer: Vec<f32> = vec![0.0; sample_frame_size];
 
                 if high_priority {
                     match set_current_thread_priority(thread_priority::ThreadPriority::Max) {
@@ -314,21 +321,24 @@ fn main() {
                         Ok(recv_bytes) => {
                             // xd: in case some random network device sends random garbage at us we can detect it
                             if receive_buffer[0] == 13 && receive_buffer[1] == 37 {
-                                match decoder.decode(&receive_buffer[SIGNATURE_SIZE..recv_bytes - SIGNATURE_SIZE], &mut decode_buffer) {
+                                // println!("recv {} bytes", recv_bytes);
+                                match decoder.decode(&receive_buffer[SIGNATURE_SIZE..recv_bytes], &mut decode_buffer) {
                                     Ok(_) => {
                                         // thanks to rust being too safe we have a copy here
-                                        let mut audio_buffer = audio_buffer_clone.lock().unwrap();
-                                        // println!("decode {} bytes {}", decode_buffer.len(), decode_buffer[70]);
-                                        if stereo_swap {
-                                            // TODO: optimize this
-                                            for i in 0..decode_buffer.len() / 2 {
-                                                audio_buffer.push_back(decode_buffer[i * 2 + 1]);
-                                                audio_buffer.push_back(decode_buffer[i * 2]);
+                                        {
+                                            let mut audio_buffer = audio_buffer_clone.lock().unwrap();
+                                            // println!("decode {} bytes {}", decode_buffer.len(), decode_buffer[70]);
+                                            if stereo_swap {
+                                                // TODO: optimize this
+                                                for i in 0..decode_buffer.len() / 2 {
+                                                    audio_buffer.push_back(decode_buffer[i * 2 + 1]);
+                                                    audio_buffer.push_back(decode_buffer[i * 2]);
+                                                }
+                                            } else{
+                                                audio_buffer.extend(decode_buffer.iter());
                                             }
-                                        } else{
-                                            audio_buffer.extend(decode_buffer.iter());
                                         }
-                                        decode_buffer.clear();
+                                        // decode_buffer.clear();
                                     },
                                     Err(err) => {
                                         println!("Error decoding data so skipped: {:?}", err);
