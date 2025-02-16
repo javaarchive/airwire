@@ -5,18 +5,14 @@ use crate::AudioConfig;
 
 // TODO: add anyhow
 pub trait Encoder: Send {
-    fn encode(&self, input: &[f32], output: &mut Vec<u8>) -> Result<(), String>; 
+    fn encode(&mut self, input: &[f32], output: &mut Vec<u8>) -> Result<(), String>; 
 }
 
 pub trait Decoder {
-    fn decode(&self, input: &[u8], output: &mut Vec<f32>) -> Result<(), String>;
+    fn decode(&mut self, input: &[u8], output: &mut Vec<f32>) -> Result<(), String>;
 }
 
 pub struct PCMCodec {
-    config: AudioConfig,
-}
-
-pub struct OpusCodec {
     config: AudioConfig,
 }
 
@@ -28,16 +24,8 @@ impl PCMCodec {
     }
 }
 
-impl OpusCodec {
-    pub fn new(config: &AudioConfig) -> Self {
-        Self {
-            config: config.clone(),
-        }
-    }
-}
-
 impl Encoder for PCMCodec {
-    fn encode(&self, input: &[f32], output: &mut Vec<u8>) -> Result<(), String> {
+    fn encode(&mut self, input: &[f32], output: &mut Vec<u8>) -> Result<(), String> {
         for (i, &sample) in input.iter().enumerate() {
             // got this code from claude for the tricky byte manips
             let pre = sample.max(-1.0).min(1.0) * 32767.0;
@@ -52,7 +40,7 @@ impl Encoder for PCMCodec {
 }
 
 impl Decoder for PCMCodec {
-    fn decode(&self, input: &[u8], output: &mut Vec<f32>) -> Result<(), String> {
+    fn decode(&mut self, input: &[u8], output: &mut Vec<f32>) -> Result<(), String> {
         // resize output if needed
         let estimated_output_length = input.len() / 2;
         if output.len() != estimated_output_length {
@@ -64,17 +52,6 @@ impl Decoder for PCMCodec {
             output[i2] = (sample_i16 as f32 / 32767.0).min(1.0).max(-1.0);
         }
         Ok(())
-    }
-}
-
-impl Encoder for OpusCodec {
-    fn encode(&self, input: &[f32], output: &mut Vec<u8>) -> Result<(), String> {
-        todo!("not implemented yet");
-    }
-}
-impl Decoder for OpusCodec {
-    fn decode(&self, input: &[u8], output: &mut Vec<f32>) -> Result<(), String> {
-        todo!("not implemented yet");
     }
 }
 

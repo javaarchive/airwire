@@ -16,6 +16,11 @@ i have some speakers and a projector and it's too much effort to have a long cab
 * configurable transports
 
 ## usage
+### list devices for input and output
+```bash
+airwire enumerate
+```
+on linux this uses alsa, so it can't use pulseaudio/pipewire specific things.
 ### my typical dev setup
 For Windows users: I highly recommend [this virtual loopback audio cable](https://vb-audio.com/Cable/), it makes an output also shows up as an audio input
 ```bash
@@ -34,6 +39,8 @@ RUST_BACKTRACE=full ./airwire recieve --addr "0.0.0.0:6969" --target-device-name
 I compiled another copy of this project on a pi 5, and all I needed to do for dependencies at build time was `sudo apt install libasound2-dev`.
 ### windows
 it worked out of the box on my machine, might have some stuff already installed.
+### other platforms
+it just needs the rust stdlib + cpal support, haven't tried
 
 
 ## special thanks

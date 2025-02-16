@@ -1,15 +1,21 @@
 use std::{collections::VecDeque, net::UdpSocket, sync::{Arc, Mutex}};
 
-use audio::Codec;
+use crate::audio::Codec;
+#[cfg(feature = "opus")]
+use crate::opus::OpusCodec;
+
 use clap::{Args, Parser, Subcommand};
 use cpal::{traits::{DeviceTrait, HostTrait, StreamTrait}, SupportedStreamConfig, SupportedStreamConfigRange};
-use thread_priority::{set_current_thread_priority   };
+use thread_priority::set_current_thread_priority;
 
 pub mod audio;
 
+#[cfg(feature = "opus")]
+pub mod opus;
+
 // https://rust-cli-recommendations.sunshowers.io/handling-arguments.html
 #[derive(Debug, Parser)]
-#[clap(name = "airwire", version)]
+#[clap(name = "airwire", version, about = "audio over network utility")]
 pub struct AirwireConfig {
     #[clap(flatten)]
     global_opts: AudioConfig,
@@ -28,31 +34,46 @@ enum Command {
 
 #[derive(Debug, Args, Clone)]
 pub struct AudioConfig {
-    #[clap(long, global = true, default_value_t = -1)]
+    #[clap(long, global = true, default_value_t = -1, env = "AIRWIRE_BUFFER", help = "buffer size in ms, if negative, use default suggested buffer size")]
     pub buffer: i32,
-    #[clap(long, global = true, env = "AIRWIRE_ADDR")]
+    #[clap(long, global = true, env = "AIRWIRE_ADDR", help = "ip:port to bind or connect to")]
     pub addr: Option<String>,
-    #[clap(long, global = true, env = "AIRWIRE_DEFAULT_DEVICE_NAME")]
+    #[clap(long, global = true, env = "AIRWIRE_DEFAULT_DEVICE_NAME", help = "name of the device to use, find names with the enumerate subcommand")]
     pub target_device_name: Option<String>,
     #[clap(long, global = true, default_value_t = 48000, env = "AIRWIRE_SAMPLE_RATE")]
     pub sample_rate: u32,
-    #[clap(long, global = true, default_value_t = 480)]
+    #[clap(long, global = true, default_value_t = 480, help = "frame size as fraction of the sample rate")]
     pub frame_size: u32,
     #[clap(long, global = true, default_value_t = 2, env = "AIRWIRE_CHANNELS")]
     pub channels: u16,
     #[clap(long, global = true, default_value_t = Codec::None, env = "AIRWIRE_CODEC")]
     pub codec: Codec,
-    #[clap(long, global = true, default_value_t = false)]
+    #[clap(long, global = true, default_value_t = false, help = "try to set threads as high priority, cur only works with recieve and may require additional perms like on linux")]
     pub priority: bool,
-    #[clap(long, global = true, default_value_t = false)]
+    #[clap(long, global = true, default_value_t = false, help = "swap left and right channel, useful for some devices where order is not correct")]
     pub stereo_swap: bool,
+    #[clap(short, long, global = true, default_value_t = 10, help = "quality of codec, defaults to 10 which is best for opus")]
+    pub quality: u32,
+    #[clap(short, long, global = true, default_value_t = { "audio".to_string() }, help = "profile/application preset to pass to codec, defaults to audio")]
+    pub profile: String,
+    #[clap(short, long, global = true, default_value_t = 128, help = "bitrate in kbps, defaults to 128 which is good for opus, negative or 0 value will omit")]
+    pub bitrate: i32,
+    #[clap(long, global = true, default_value_t = true, help = "enable forward error correction for opus codec")]
+    pub fec: bool,
+    #[clap(long, global = true, default_value_t = false, help = "enable variable bitrate for opus codec")]
+    pub vbr: bool,
 }
 
 impl AudioConfig {
     pub fn construct_encoder(&self) -> Box<dyn audio::Encoder> {
         let encoder: Box<dyn audio::Encoder> = match self.codec {
             Codec::None => Box::new(audio::PCMCodec::new(self)),
-            Codec::Opus => Box::new(audio::OpusCodec::new(self)),
+            Codec::Opus => {
+                #[cfg(not(feature = "opus"))]
+                panic!("Opus codec is not enabled, enable it with --features opus");
+                #[cfg(feature = "opus")]
+                Box::new(OpusCodec::new(self))
+            },
         };
         encoder
     }
@@ -60,7 +81,12 @@ impl AudioConfig {
     pub fn construct_decoder(&self) -> Box<dyn audio::Decoder> {
         let decoder: Box<dyn audio::Decoder> = match self.codec {
             Codec::None => Box::new(audio::PCMCodec::new(self)),
-            Codec::Opus => Box::new(audio::OpusCodec::new(self)),
+            Codec::Opus => {
+                #[cfg(not(feature = "opus"))]
+                panic!("Opus codec is not enabled, enable it with --features opus");
+                #[cfg(feature = "opus")]
+                Box::new(OpusCodec::new(self))
+            },
         };
         decoder
     }
@@ -125,6 +151,8 @@ pub fn block_main_thread() {
     }
 }
 
+pub const SIGNATURE_SIZE: usize = 2;
+
 pub fn add_signature(buffer: &mut Vec<u8>) {
     buffer.push(13);
     buffer.push(37);
@@ -162,7 +190,7 @@ fn main() {
     match airwire_config.command {
         Command::Transmit(args) => {
             let host = cpal::default_host();
-            let encoder = airwire_config.global_opts.construct_encoder();
+            let mut encoder = airwire_config.global_opts.construct_encoder();
             let input_device = airwire_config.global_opts.get_input_device(&host).expect("No input device found");
             let max_buffer_frames = calculate_max_buffer_frames();
             let sample_frame_size = calculate_sample_frame_size();
@@ -181,7 +209,7 @@ fn main() {
             let socket_arc = Arc::new(socket);
 
             let mut input_buffer = vec![0.0f32; sample_frame_size as usize];
-            let mut packet_buffer = Vec::with_capacity((packet_size + 2) as usize);
+            let mut packet_buffer = Vec::with_capacity((packet_size + SIGNATURE_SIZE) as usize);
             let mut buffer_pos = 0;
             add_signature(&mut packet_buffer);
 
@@ -265,9 +293,9 @@ fn main() {
 
             std::thread::Builder::new().name("networking".to_string()).spawn(move || {
                 
-                println!("begin recieve thread {}",packet_size + 2);
-                let decoder = airwire_config.global_opts.construct_decoder();
-                let mut receive_buffer = vec![0u8; packet_size + 2];
+                println!("begin recieve thread {}",packet_size + SIGNATURE_SIZE);
+                let mut decoder = airwire_config.global_opts.construct_decoder();
+                let mut receive_buffer = vec![0u8; packet_size + SIGNATURE_SIZE];
                 let mut decode_buffer = Vec::with_capacity(real_frame_size);
 
                 if high_priority {
@@ -283,10 +311,10 @@ fn main() {
 
                 loop {
                     match socket_arc.recv(&mut receive_buffer) {
-                        Ok(_) => {
+                        Ok(recv_bytes) => {
                             // xd: in case some random network device sends random garbage at us we can detect it
                             if receive_buffer[0] == 13 && receive_buffer[1] == 37 {
-                                match decoder.decode(&receive_buffer[2..], &mut decode_buffer) {
+                                match decoder.decode(&receive_buffer[SIGNATURE_SIZE..recv_bytes - SIGNATURE_SIZE], &mut decode_buffer) {
                                     Ok(_) => {
                                         // thanks to rust being too safe we have a copy here
                                         let mut audio_buffer = audio_buffer_clone.lock().unwrap();
