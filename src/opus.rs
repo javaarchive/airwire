@@ -31,7 +31,7 @@ impl OpusCodec {
     pub fn new(config: &AudioConfig) -> Self {
         let channels = parse_channel(config.channels);
         let mut encoder = OpusEncoder::new(config.sample_rate, channels, parse_application(&config.profile)).expect("opus encoder init failure") ;
-        let decoder = OpusDecoder::new(config.sample_rate, channels).expect("opus decoder init failure");
+        let mut decoder = OpusDecoder::new(config.sample_rate, channels).expect("opus decoder init failure");
 
         if config.bitrate == 0 {
             encoder.set_bitrate(opus::Bitrate::Auto).expect("opus bitrate set to auto failure");
@@ -45,7 +45,17 @@ impl OpusCodec {
         encoder.set_vbr(config.vbr).expect("opus vbr set failure");
         // encoder.set_packet_loss_perc(value)
 
-        // TODO: packet loss percentage?
+        if let Some(percent) = config.packet_loss_perc {
+            if percent > 100 {
+                println!("this packet loss percent looks invalid to me...")
+            }
+            encoder.set_packet_loss_perc(percent as i32).expect("opus packet loss set failure");
+        }
+
+        if let Some(gain) = config.gain {
+            let gain_calculated: i32 = (gain * 255.0).round() as i32;
+            decoder.set_gain(gain_calculated).expect("opus gain set failure");
+        }
 
         Self {
             config: config.clone(),

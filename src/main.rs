@@ -54,9 +54,9 @@ pub struct AudioConfig {
     pub stereo_swap: bool,
     #[clap(short, long, global = true, default_value_t = 10, help = "quality of codec, defaults to 10 which is best for opus")]
     pub quality: u32,
-    #[clap(short, long, global = true, default_value_t = { "audio".to_string() }, help = "profile/application preset to pass to codec, defaults to audio")]
+    #[clap(short, long, global = true, default_value_t = { "audio".to_string() }, help = "profile/application preset to pass to codec, defaults to audio", env = "AIRWIRE_PROFILE")]
     pub profile: String,
-    #[clap(short, long, global = true, default_value_t = 128, help = "bitrate in kbps, defaults to 128kbps which is good for opus, negative or 0 value will omit")]
+    #[clap(short, long, global = true, default_value_t = 128, help = "bitrate in kbps, defaults to 128kbps which is good for opus, negative or 0 value will omit", env = "AIRWIRE_BITRATE")]
     pub bitrate: i32,
     #[clap(long, global = true, default_value_t = false, help = "enable forward error correction for opus codec")]
     pub fec: bool,
@@ -64,6 +64,10 @@ pub struct AudioConfig {
     pub vbr: bool,
     #[clap(long, global = true, default_value_t = false, help = "enable debug logging")]
     pub debug: bool,
+    #[clap(long, global = true, help = "packet loss percentage for some encoders, defaults to default of libopus")]
+    pub packet_loss_perc: Option<u32>,
+    #[clap(long, global = true, help = "gain in dB, may not be applicable on both sides, defaults to unset")]
+    pub gain: Option<f32>,
 }
 
 impl AudioConfig {
