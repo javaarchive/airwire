@@ -1,9 +1,10 @@
-use std::{collections::VecDeque, net::UdpSocket, sync::{Arc, Mutex}};
+use std::{collections::VecDeque, i64, net::UdpSocket, sync::{Arc, Mutex}};
 
 use crate::audio::Codec;
 #[cfg(feature = "opus")]
 use crate::opus::OpusCodec;
 
+use byteorder::{BigEndian, ByteOrder, LittleEndian};
 use clap::{Args, Parser, Subcommand};
 use cpal::{traits::{DeviceTrait, HostTrait, StreamTrait}, SupportedStreamConfig, SupportedStreamConfigRange};
 use thread_priority::set_current_thread_priority;
@@ -31,6 +32,8 @@ enum Command {
     Discover(DiscoverArgs),
     Enumerate(EnumerateArgs),
 }
+
+pub const USE_BETA_PACKET_PACER: bool = true;
 
 #[derive(Debug, Args, Clone)]
 pub struct AudioConfig {
@@ -68,6 +71,10 @@ pub struct AudioConfig {
     pub packet_loss_perc: Option<u32>,
     #[clap(long, global = true, help = "gain in dB, may not be applicable on both sides, defaults to unset")]
     pub gain: Option<f32>,
+    #[clap(long, global = true, help = "enable packet pacing, must be set both sides, defaults to unset")]
+    pub packet_pacing: bool,
+    #[clap(long, global = true, help = "packets per sample frame to repeat, please use with packet pacing, only applicable to sender", default_value_t = 1)] 
+    pub repeat_packets: u8,
 }
 
 impl AudioConfig {
@@ -158,10 +165,15 @@ pub fn block_main_thread() {
 }
 
 pub const SIGNATURE_SIZE: usize = 2;
+pub const ID_SIZE: usize = 8;
 
 pub fn add_signature(buffer: &mut Vec<u8>) {
     buffer.push(13);
     buffer.push(37);
+}
+
+pub fn add_packet_id(buffer: &mut Vec<u8>, id: i64) {
+    buffer.extend_from_slice(&id.to_be_bytes());
 }
 
 fn describe_stream_config(stream_config: &SupportedStreamConfigRange) -> String {
@@ -192,6 +204,8 @@ fn main() {
 
     let high_priority = airwire_config.global_opts.priority;
 
+    let enable_packet_pacer: bool = USE_BETA_PACKET_PACER && airwire_config.global_opts.packet_pacing;
+
     // networking is hardcoded for now
     match airwire_config.command {
         Command::Transmit(args) => {
@@ -220,6 +234,8 @@ fn main() {
             let mut buffer_pos = 0;
             add_signature(&mut packet_buffer);
 
+            let mut next_packet_id: i64 = 1;
+
             let input_stream = input_device.build_input_stream(
                 &cpal_config,
                 move |data: &[f32], _: &cpal::InputCallbackInfo| {
@@ -246,17 +262,33 @@ fn main() {
                                 println!("Error encoding data: {:?}", err);
                             } else {
                                 // println!("send {} bytes (input {})", packet_buffer.len(),input_buffer.len());
+                                if enable_packet_pacer {
+                                    add_packet_id(&mut packet_buffer, next_packet_id);
+                                }
                                 packet_buffer.extend_from_slice(&encoded_data_buffer);
                                 // println!("sent {} bytes", packet_buffer.len());
-                                socket_arc.send(&packet_buffer).expect("Error sending data");
+
+                                for i in 0..airwire_config.global_opts.repeat_packets {
+                                    socket_arc.send(&packet_buffer).expect("Error sending data");
+                                }
+
+                                if enable_packet_pacer {
+                                    next_packet_id += 1;
+                                    if next_packet_id > i64::MAX - 16 {
+                                        // roll to negative
+                                        next_packet_id = i64::MIN + 16;
+                                    }
+                                }
+
                                 /*print!("sent a ");
                                 for i in 450..500 {
                                     print!("{:02x} ", packet_buffer[i]);
                                 }
                                 println!("");*/
-                                packet_buffer.clear();
-                                add_signature(&mut packet_buffer);
+                                packet_buffer.resize(SIGNATURE_SIZE, 0); // resize to the signautre only 
+                                // add_signature(&mut packet_buffer);
                             }
+                            // rewind
                             buffer_pos = 0;
                         }
                     }
@@ -320,13 +352,39 @@ fn main() {
                     }
                 }
 
+                let mut last_recv_id: Option<i64> = None;
+                let data_offset = match enable_packet_pacer {
+                    true => SIGNATURE_SIZE + ID_SIZE,
+                    false => SIGNATURE_SIZE
+                };
+
                 loop {
                     match socket_arc.recv(&mut receive_buffer) {
                         Ok(recv_bytes) => {
                             // xd: in case some random network device sends random garbage at us we can detect it
                             if receive_buffer[0] == 13 && receive_buffer[1] == 37 {
                                 // println!("recv {} bytes", recv_bytes);
-                                match decoder.decode(&receive_buffer[SIGNATURE_SIZE..recv_bytes], &mut decode_buffer) {
+                                if enable_packet_pacer {
+                                    // read id and check not dupe
+                                    let packet_id = BigEndian::read_i64(&receive_buffer[SIGNATURE_SIZE..SIGNATURE_SIZE + ID_SIZE]);
+                                    if let Some(last_recv_id_num) = last_recv_id {
+                                        if last_recv_id_num >= 0 && packet_id < 0 {
+                                            // allow negative rollover
+                                            last_recv_id = Some(packet_id);
+                                        } else if packet_id > last_recv_id_num {
+                                            // ok
+                                            last_recv_id = Some(packet_id);
+                                        } else {
+                                            // duplicate or old packet detected
+                                            continue; // skip
+                                        }
+                                    } else {
+                                        // first time
+                                        last_recv_id = Some(packet_id);
+                                    }
+                                    
+                                }
+                                match decoder.decode(&receive_buffer[data_offset..recv_bytes], &mut decode_buffer) {
                                     Ok(_) => {
                                         // thanks to rust being too safe we have a copy here
                                         {
