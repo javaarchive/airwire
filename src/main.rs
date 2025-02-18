@@ -276,7 +276,7 @@ fn main() {
                                     next_packet_id += 1;
                                     if next_packet_id > i64::MAX - 16 {
                                         // roll to negative
-                                        next_packet_id = i64::MIN + 16;
+                                        next_packet_id = -2;
                                     }
                                 }
 
