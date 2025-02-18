@@ -319,6 +319,7 @@ fn main() {
             let sample_rate = airwire_config.global_opts.sample_rate as u32;
             let channels = airwire_config.global_opts.channels as u16;
             let stereo_swap = airwire_config.global_opts.stereo_swap;
+            let debug = airwire_config.global_opts.debug;
 
             if stereo_swap {
                 println!("Stereo swap enabled on recv side, may reduce performance a lot.");
@@ -357,6 +358,10 @@ fn main() {
                     true => SIGNATURE_SIZE + ID_SIZE,
                     false => SIGNATURE_SIZE
                 };
+                
+                if debug {
+                    println!("data offset {}", data_offset);
+                }
 
                 loop {
                     match socket_arc.recv(&mut receive_buffer) {
@@ -383,6 +388,9 @@ fn main() {
                                         last_recv_id = Some(packet_id);
                                     }
                                     
+                                }
+                                if debug {
+                                    println!("{} to {}", data_offset, recv_bytes);
                                 }
                                 match decoder.decode(&receive_buffer[data_offset..recv_bytes], &mut decode_buffer) {
                                     Ok(_) => {
