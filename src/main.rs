@@ -234,7 +234,7 @@ fn main() {
             let mut buffer_pos = 0;
             add_signature(&mut packet_buffer);
 
-            let mut next_packet_id: i64 = 1;
+            let mut next_packet_id: i64 = -1;
 
             let input_stream = input_device.build_input_stream(
                 &cpal_config,
