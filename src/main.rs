@@ -268,7 +268,7 @@ fn main() {
                                 packet_buffer.extend_from_slice(&encoded_data_buffer);
                                 // println!("sent {} bytes", packet_buffer.len());
 
-                                for i in 0..airwire_config.global_opts.repeat_packets {
+                                for _ in 0..airwire_config.global_opts.repeat_packets {
                                     socket_arc.send(&packet_buffer).expect("Error sending data");
                                 }
 
@@ -336,9 +336,9 @@ fn main() {
 
             std::thread::Builder::new().name("networking".to_string()).spawn(move || {
                 
-                println!("begin recieve thread {}",packet_size + SIGNATURE_SIZE);
+                println!("begin recieve thread max size {}",packet_size + SIGNATURE_SIZE + ID_SIZE);
                 let mut decoder = airwire_config.global_opts.construct_decoder();
-                let mut receive_buffer = vec![0u8; packet_size + SIGNATURE_SIZE];
+                let mut receive_buffer = vec![0u8; packet_size + SIGNATURE_SIZE + ID_SIZE];
                 let mut decode_buffer: Vec<f32> = vec![0.0; sample_frame_size];
 
                 if high_priority {
