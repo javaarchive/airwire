@@ -55,7 +55,7 @@ pub struct AudioConfig {
     pub priority: bool,
     #[clap(long, global = true, default_value_t = false, help = "swap left and right channel, useful for some devices where order is not correct")]
     pub stereo_swap: bool,
-    #[clap(short, long, global = true, default_value_t = 10, help = "quality of codec, defaults to 10 which is best for opus")]
+    #[clap(short, long, global = true, default_value_t = 10, help = "quality of codec, defaults to 10 which is best for opus, does not work atm")]
     pub quality: u32,
     #[clap(short, long, global = true, default_value_t = { "audio".to_string() }, help = "profile/application preset to pass to codec, defaults to audio", env = "AIRWIRE_PROFILE")]
     pub profile: String,

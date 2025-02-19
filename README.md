@@ -24,7 +24,7 @@ airwire enumerate
 ```
 on linux this uses alsa, so it can't use pulseaudio/pipewire specific things.
 ### my typical dev setup
-For Windows users: I highly recommend [this virtual loopback audio cable](https://vb-audio.com/Cable/), it makes an output also shows up as an audio input
+For Windows users: I highly recommend [this virtual loopback audio cable](https://vb-audio.com/Cable/), it makes an output also shows up as an audio input (they also added a sep 16 channel loopback device which I might get around to testing),
 ```bash
 cargo run --release -- transmit --target-device-name "CABLE Output (VB-Audio Virtual Cable)" --addr "192.168.68.96:6969" --stereo-swap --packet-pacing
 ```
