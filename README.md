@@ -29,7 +29,8 @@ For Windows users: I highly recommend [this virtual loopback audio cable](https:
 cargo run --release -- transmit --target-device-name "CABLE Output (VB-Audio Virtual Cable)" --addr "192.168.68.96:6969" --stereo-swap --packet-pacing
 ```
 **`cargo run --release --` can be replaced with just the command `airwire` if you want to use this outside of development**
-*todo: document linux monitor device usage, seems like this requires additional configuration*
+
+*todo: on linux there's a bit of a hack cause cpal doesn't touch pipewire directly 1. cover your ears, 2. transmit the `pipewire` or `pulse` device depending on your audio server, 3. open pavucontrol and go to the recording tab and switch airwire to capture a monitor device 4. it seems like it'll choose the correct device next time?*
 
 then on a linux machine (in this case a pi, can leave buffer blank to automatically configure it):
 ```bash
