@@ -453,7 +453,7 @@ fn main() {
                         if stat_counter >= stat_interval {
                             stat_counter = stat_counter % stat_interval;
                             // do log
-                            let filled_ms = audio_buffer.len() * 1000 / (sample_rate as usize * channels as usize);
+                            let filled_ms = data.len() * 1000 / (sample_rate as usize * channels as usize);
                             let extra_data_size = audio_buffer.len();
                             let extra_data_ms = extra_data_size * 1000 / (sample_rate as usize * channels as usize);
                             println!("Buffer status: {}ms filled {}/{}, we still have {}ms of extra data ({} f32 samples)", filled_ms, filled, data.len(), extra_data_ms, extra_data_size);
