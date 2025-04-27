@@ -58,6 +58,8 @@ impl Decoder for PCMCodec {
         }
         Ok(())
     }
+
+    // TODO: this sounds like an excellent place to use simd
 }
 
 pub struct StreamConfig {

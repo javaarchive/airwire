@@ -75,6 +75,10 @@ pub struct AudioConfig {
     pub packet_pacing: bool,
     #[clap(long, global = true, help = "packets per sample frame to repeat, please use with packet pacing, only applicable to sender", default_value_t = 1)] 
     pub repeat_packets: u8,
+    #[clap(long, global = true, help = "how often to log buffer conditions in samples, 0 is off", default_value_t = 0)] 
+    pub buffer_log: u32,
+    #[clap(long, global = true, help = "how often to log buffer conditions but this time in milliseconds of time, will override previous option", default_value_t = 0)] 
+    pub buffer_log_time: u32,
 }
 
 impl AudioConfig {
@@ -320,6 +324,10 @@ fn main() {
             let channels = airwire_config.global_opts.channels as u16;
             let stereo_swap = airwire_config.global_opts.stereo_swap;
             let debug = airwire_config.global_opts.debug;
+            let stat_interval = match airwire_config.global_opts.buffer_log_time {
+                0 => airwire_config.global_opts.buffer_log as u32,
+                _ => (airwire_config.global_opts.buffer_log_time * sample_rate * (channels as u32)) / 1000,
+            };
 
             if stereo_swap {
                 println!("Stereo swap enabled on recv side, may reduce performance a lot.");
@@ -426,6 +434,7 @@ fn main() {
             }).expect("recieve thread setup failed");
 
             let audio_buffer_clone_2 = audio_buffer.clone();
+            let mut stat_counter: u32 = 0;
             let output_stream = output_device.build_output_stream(
                 &cpal_config,
                 move |data: &mut [f32], _: &cpal::OutputCallbackInfo| {
@@ -437,6 +446,17 @@ fn main() {
                             filled += 1;
                         } else {
                             *sample = 0.0; // silent
+                        }
+                    }
+                    if stat_interval > 0 {
+                        stat_counter = stat_counter.saturating_add(data.len() as u32);
+                        if stat_counter >= stat_interval {
+                            stat_counter = stat_counter % stat_interval;
+                            // do log
+                            let filled_ms = audio_buffer.len() * 1000 / (sample_rate as usize * channels as usize);
+                            let extra_data_size = audio_buffer.len();
+                            let extra_data_ms = extra_data_size * 1000 / (sample_rate as usize * channels as usize);
+                            println!("Buffer status: {}ms filled {}/{}, we still have {}ms of extra data ({} f32 samples)", filled_ms, filled, data.len(), extra_data_ms, extra_data_size);
                         }
                     }
                     // println!("filled {}/{} {}", filled, data.len(), data[1]);
