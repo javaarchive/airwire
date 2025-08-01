@@ -11,6 +11,9 @@ jobs:
     name: Check
     runs-on: ubuntu-latest
     steps:
+      - name: Install required dev header packages for linux # see https://crates.io/crates/cpal
+        run: |
+          sudo apt-get install libasound2-dev
       - uses: actions/checkout@v4
       - uses: actions-rs/toolchain@v1
         with:
@@ -74,6 +77,9 @@ jobs:
     name: Clippy
     runs-on: ubuntu-latest
     steps:
+      - name: Install required dev header packages for linux # see https://crates.io/crates/cpal
+        run: |
+          sudo apt-get install libasound2-dev
       - uses: actions/checkout@v4
       - uses: actions-rs/toolchain@v1
         with:
