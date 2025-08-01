@@ -67,6 +67,22 @@ it just needs the rust stdlib + cpal support, haven't tried
 `--packet-loss-percent <percent>` sets the packet loss percentage for some encoders, defaults to unset
 `--gain <gain>` sets the gain modifier in dB, may not be applicable on both sides, defaults to unset. does not work if opus is not used for now.
 
+## cookbook
+Here are some of my personal scripts I use.
+### tranmission on linux desktop
+```bash
+airwire transmit --addr <target addr> --target-device-name "pipewire" --packet-pacing --repeat-packets 2
+```
+You may find it useful to create a null sink in Pipewire/Pulseaudio and then use `pavucontrol` to force capture from a monitor source.
+### recieve on pi
+This uses chrt to set the process to a high priority, which is nice for getting a consistent latency.
+```
+ssh <pi creds> sudo chrt --rr 99 ./airwire recieve --addr "0.0.0.0:6969" --packet-pacing --buffer 480
+```
+### gaming mode
+Remove `--buffer 480` and replace with `--buffer 240 --frame-size 120`. Makes most rhythm games playable.
+
+
 ## special thanks
 * claude for showing me a basic impl of a minimum viable product that this actually wasn't too hard if I used `cpal`. 
 * `cpal` for being awesome for crossplatform low latency audio
