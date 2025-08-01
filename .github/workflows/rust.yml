@@ -176,6 +176,9 @@ jobs:
       run: |
         cargo build --verbose --release
 
+    - name: List the target dir for debug
+      run: ls -lah target
+
     - name: Rename
       run: cp target/${{ matrix.TARGET }}/release/airwire${{ matrix.EXTENSION }} airwire-${{ matrix.TARGET }}${{ matrix.EXTENSION }}
 
