@@ -118,8 +118,8 @@ jobs:
           TARGET: aarch64-apple-darwin
 
         # I recommend building on a raspberry pi if you're going to use one and not this build.
-        - os: ubuntu-latest
-          TARGET: aarch64-unknown-linux-gnu
+        #- os: ubuntu-latest
+        #  TARGET: aarch64-unknown-linux-gnu
 
         #s- os: ubuntu-latest
         #  TARGET: armv7-unknown-linux-gnueabihf
@@ -128,8 +128,8 @@ jobs:
         - os: ubuntu-latest
           TARGET: x86_64-unknown-linux-gnu
 
-        - os: ubuntu-latest
-          TARGET: i686-unknown-linux-musl
+        #- os: ubuntu-latest
+        #  TARGET: i686-unknown-linux-musl
           
         - os: ubuntu-latest
           TARGET: x86_64-unknown-linux-musl
@@ -165,9 +165,16 @@ jobs:
       run: |
         cargo install cross
 
-    - name: Build
+    - name: Build non-Linux
+      if: ${{ !contains(matrix.TARGET, 'linux') }}
       run: |
         cross build --verbose --release --target=${{ matrix.TARGET }}
+
+    - name: Build Linux
+      # cross compiling with alsa is annoying rn so I'm not dealing with it for now
+      if: contains(matrix.TARGET, 'linux')
+      run: |
+        cargo build --verbose --release
 
     - name: Rename
       run: cp target/${{ matrix.TARGET }}/release/airwire${{ matrix.EXTENSION }} airwire-${{ matrix.TARGET }}${{ matrix.EXTENSION }}
