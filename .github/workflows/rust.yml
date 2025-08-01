@@ -159,20 +159,20 @@ jobs:
         cross build --verbose --release --target=${{ matrix.TARGET }}
 
     - name: Rename
-      run: cp target/${{ matrix.TARGET }}/release/lrcsync${{ matrix.EXTENSION }} lrcsync-${{ matrix.TARGET }}${{ matrix.EXTENSION }}
+      run: cp target/${{ matrix.TARGET }}/release/airwire${{ matrix.EXTENSION }} airwire-${{ matrix.TARGET }}${{ matrix.EXTENSION }}
 
     - uses: actions/upload-artifact@master
       with:
-        name: lrcsync-${{ matrix.TARGET }}${{ matrix.EXTENSION }}
-        path: lrcsync-${{ matrix.TARGET }}${{ matrix.EXTENSION }}
+        name: airwire-${{ matrix.TARGET }}${{ matrix.EXTENSION }}
+        path: airwire-${{ matrix.TARGET }}${{ matrix.EXTENSION }}
 
     #- uses: svenstaro/upload-release-action@v2
     #  name: Upload binaries to release
     #  if: ${{ github.event_name == 'push' }}
     #  with:
     #    repo_token: ${{ secrets.GITHUB_TOKEN }}
-    #    file: lrcsync-${{ matrix.TARGET }}${{ matrix.EXTENSION }}
-    #    asset_name: lrcsync-${{ matrix.TARGET }}${{ matrix.EXTENSION }}
+    #    file: airwire-${{ matrix.TARGET }}${{ matrix.EXTENSION }}
+    #    asset_name: airwire-${{ matrix.TARGET }}${{ matrix.EXTENSION }}
     #    tag: ${{ github.ref }}
     #    prerelease: ${{ !startsWith(github.ref, 'refs/tags/') }}
     #    overwrite: true
